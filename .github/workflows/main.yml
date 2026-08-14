@@ -1,0 +1,27 @@
+name: Build Ninja Kernel
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Build the Custom Kernel
+        run: |
+          cd kernel-build
+          
+          # Create the required Docker volume for the source code
+          docker volume create kbuild-sources
+          
+          # Build the Docker container
+          docker build -t kbuild .
+          
+          # Run the compilation script inside the container
+          docker run --rm -v "$PWD":/work -v kbuild-sources:/work/sources -w /work kbuild ./scripts/build-all.sh
+          
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image.gz
+          path: kernel-build/out/Image.gz
