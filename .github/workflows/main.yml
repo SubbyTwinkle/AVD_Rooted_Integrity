@@ -1,0 +1,31 @@
+name: Build x86_64 Ninja Kernel
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Patch scripts for x86_64
+        run: |
+          # Swap ARM64 variables to x86_64
+          find kernel-build/scripts -type f -exec sed -i 's/aarch64/x86_64/g' {} +
+          # Tell Google's Bazel compiler to build the x86 target instead of ARM
+          find kernel-build/scripts -type f -exec sed -i 's/kernel_aarch64_dist/kernel_x86_64_dist/g' {} +
+          # The output file for x86 is bzImage, not Image.gz
+          find kernel-build/scripts -type f -exec sed -i 's/Image.gz/bzImage/g' {} +
+          
+      - name: Build the Custom Kernel
+        run: |
+          cd kernel-build
+          docker volume create kbuild-sources
+          docker build -t kbuild .
+          # This will now compile an x86_64 kernel with SUSFS and anti-emulator patches!
+          docker run --rm -v "$PWD":/work -v kbuild-sources:/work/sources -w /work kbuild ./scripts/build-all.sh
+          
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: bzImage
+          path: kernel-build/out/bzImage
